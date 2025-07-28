@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Upgrade Resource Calculation</title>
+    <style>
+        body { font-family: monospace; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .pass { background-color: #d4edda; color: #155724; }
+        .fail { background-color: #f8d7da; color: #721c24; }
+        .debug { background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
+        button { margin: 5px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Debug Upgrade Resource Calculation</h1>
+    <div id="debugOutput"></div>
+    
+    <h2>Manual Tests</h2>
+    <button onclick="testResourceAffordability()">Test Resource Affordability</button>
+    <button onclick="testElectricityUpgrades()">Test Electricity Upgrades</button>
+    <button onclick="addElectricity()">Add 500 Electricity</button>
+    <button onclick="showGameState()">Show Game State</button>
+    
+    <!-- Load game scripts -->
+    <script src="src/data/constants.js"></script>
+    <script src="src/data/buildings.js"></script>
+    <script src="src/data/upgrades.js"></script>
+    <script src="src/utils/formatters.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/core/gameState.js"></script>
+    <script src="src/systems/resourceSystem.js"></script>
+    <script src="src/systems/buildingSystem.js"></script>
+    <script src="src/systems/upgradeSystem.js"></script>
+    <script src="src/systems/researchSystem.js"></script>
+
+    <script>
+        function log(message, type = 'debug') {
+            const output = document.getElementById('debugOutput');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            output.appendChild(div);
+            console.log(message);
+        }
+
+        // Initialize game
+        GameState.initialize();
+        
+        function testResourceAffordability() {
+            log('=== Testing Resource Affordability ===');
+            
+            const state = GameState.getState();
+            log(`Current resources: ${JSON.stringify(state.resources)}`);
+            log(`Unlocked resources: ${JSON.stringify(state.unlockedResources)}`);
+            
+            // Test basic resource check
+            const ironCost = { ironOre: 10 };
+            const canAffordIron = ResourceSystem.canAfford(ironCost);
+            log(`Can afford 10 iron ore: ${canAffordIron} (have ${state.resources.ironOre})`, canAffordIron ? 'pass' : 'fail');
+            
+            // Test electricity check (should fail if not unlocked)
+            const electricityCost = { electricity: 50 };
+            const canAffordElectricity = ResourceSystem.canAfford(electricityCost);
+            log(`Can afford 50 electricity: ${canAffordElectricity} (have ${state.resources.electricity}, unlocked: ${state.unlockedResources.electricity})`, canAffordElectricity ? 'pass' : 'fail');
+            
+            // Test mixed cost
+            const mixedCost = { ironOre: 5, electricity: 25 };
+            const canAffordMixed = ResourceSystem.canAfford(mixedCost);
+            log(`Can afford mixed cost (5 iron ore + 25 electricity): ${canAffordMixed}`, canAffordMixed ? 'pass' : 'fail');
+        }
+        
+        function testElectricityUpgrades() {
+            log('=== Testing Electricity Upgrades ===');
+            
+            // Check which electricity upgrades exist
+            const electricityUpgrades = Object.entries(UPGRADES).filter(([id, upgrade]) => 
+                upgrade.cost && upgrade.cost.electricity
+            );
+            
+            log(`Found ${electricityUpgrades.length} electricity-based upgrades:`);
+            electricityUpgrades.forEach(([id, upgrade]) => {
+                const canPurchase = UpgradeSystem.canPurchase(id);
+                const canAffordCost = ResourceSystem.canAfford(upgrade.cost);
+                const isUnlocked = UpgradeSystem.isUnlocked(id);
+                log(`- ${upgrade.name}: canPurchase=${canPurchase}, canAfford=${canAffordCost}, isUnlocked=${isUnlocked}, cost=${JSON.stringify(upgrade.cost)}`, canPurchase ? 'pass' : 'fail');
+            });
+        }
+        
+        function addElectricity() {
+            log('=== Adding Electricity ===');
+            
+            // First unlock electricity
+            ResourceSystem.unlockResource('electricity');
+            
+            // Add electricity to resources  
+            GameState.addResource('electricity', 500);
+            
+            const state = GameState.getState();
+            log(`Added electricity. Now have: ${state.resources.electricity}, unlocked: ${state.unlockedResources.electricity}`, 'pass');
+            
+            // Test electricity upgrades again
+            testElectricityUpgrades();
+        }
+        
+        function showGameState() {
+            log('=== Current Game State ===');
+            const state = GameState.getState();
+            
+            log(`Resources: ${JSON.stringify(state.resources, null, 2)}`);
+            log(`Unlocked Resources: ${JSON.stringify(state.unlockedResources, null, 2)}`);
+            log(`Buildings: ${JSON.stringify(state.buildings, null, 2)}`);
+            log(`Purchased Upgrades: ${JSON.stringify(state.purchasedUpgrades)}`);
+        }
+        
+        // Run initial tests
+        log('Debug page loaded. Game initialized.', 'pass');
+        testResourceAffordability();
+        testElectricityUpgrades();
+    </script>
+</body>
+</html>

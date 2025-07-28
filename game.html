@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Production Tycoon</title>
+    
+    <!-- Single consolidated stylesheet -->
+    <link rel="stylesheet" href="styles/game.css">
+</head>
+<body>
+    <!-- Main game container -->
+    <div id="game-root">
+        <!-- Game header -->
+        <div class="game-header">
+            <h1>City Production Tycoon</h1>
+            <div class="header-controls">
+                <button class="btn btn-secondary btn-small" onclick="Game.clearOldSave()" title="Clear save data and restart with factory system">
+                    🔄 Reset Game
+                </button>
+            </div>
+        </div>
+        
+        <!-- Two-panel layout: Production + Research/Stats -->
+        <div class="game-container">
+            <!-- Left Panel: Production (Resources + Buildings Unified) -->
+            <div class="panel panel-left panel-wide">
+                <div class="card">
+                    <div class="card-title">Production Overview</div>
+                    <div class="card-content">
+                        <div class="overflow-x-auto">
+                            <table id="game-table" class="resource-empire-table">
+                                <thead>
+                                    <tr class="section-headers">
+                                        <th class="resource-section-header" colspan="4">
+                                            <div class="section-title">
+                                                📊 Resources
+                                            </div>
+                                        </th>
+                                        <th class="building-section-header" colspan="5">
+                                            <div class="section-title">
+                                                🏗️ Buildings
+                                            </div>
+                                        </th>
+                                        <th class="upgrade-section-header" colspan="5">
+                                            <div class="section-title">
+                                                ⬆️ Upgrades
+                                            </div>
+                                        </th>
+                                    </tr>
+                                    <tr class="column-headers">
+                                        <!-- Resource Headers -->
+                                        <th class="resource-header">Resource</th>
+                                        <th class="resource-header">Amount</th>
+                                        <th class="resource-header">Income</th>
+                                        <th class="resource-header">Expense</th>
+                                        <!-- Building Headers -->
+                                        <th class="building-header">Building</th>
+                                        <th class="building-header">Benefit</th>
+                                        <th class="building-header">Owned</th>
+                                        <th class="building-header">Cost</th>
+                                        <th class="building-header">Action</th>
+                                        <!-- Upgrade Headers -->
+                                        <th class="upgrade-header">Upgrade</th>
+                                        <th class="upgrade-header">Benefit</th>
+                                        <th class="upgrade-header">Status</th>
+                                        <th class="upgrade-header">Cost</th>
+                                        <th class="upgrade-header">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="game-table-body">
+                                    <!-- Table rows will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="unlock-hint" class="mt-md hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Research, Statistics & Upgrades -->
+            <div class="panel panel-right">
+                <!-- Research Panel -->
+                <div class="card">
+                    <div class="card-title">Research Lab</div>
+                    <div class="card-content">
+                        <div id="research-panel"></div>
+                    </div>
+                </div>
+                
+                <!-- Statistics Panel -->
+                <div class="card">
+                    <div class="card-title">Statistics</div>
+                    <div class="card-content">
+                        <div id="stats-panel"></div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- LOAD SCRIPTS IN DEPENDENCY ORDER              -->
+    <!-- ============================================= -->
+    
+    <!-- 1. Constants and Configuration -->
+    <script src="src/data/constants.js"></script>
+    <script src="src/data/buildings.js"></script>
+    <script src="src/data/upgrades.js"></script>
+    
+    <!-- 2. Utility Functions -->
+    <script src="src/utils/formatters.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    
+    <!-- 3. Core Game Systems -->
+    <script src="src/core/gameState.js"></script>
+    <script src="src/systems/resourceSystem.js"></script>
+    <script src="src/systems/buildingSystem.js"></script>
+    <script src="src/systems/upgradeSystem.js"></script>
+    <script src="src/systems/researchSystem.js"></script>
+    
+    <!-- 4. UI Components -->
+    <script src="src/ui/SimpleTableUI.js"></script>
+    
+    <!-- 5. Main Game Controller -->
+    <script src="src/core/game.js"></script>
+    
+    <!-- 6. Game initialization -->
+    <script>
+        // =============================================================
+        // GAME STARTUP
+        // =============================================================
+        
+        /**
+         * Main game initialization function
+         * Called when the page is fully loaded
+         */
+        function startGame() {
+            console.log('🎮 Starting City Production Tycoon...');
+            console.log('📁 Using fully modular architecture');
+            
+            try {
+                // Add fallbacks for missing systems
+                addSystemFallbacks();
+                
+                // Initialize the game through the main controller
+                Game.initialize();
+                
+                console.log('✅ Game started successfully!');
+            } catch (error) {
+                console.error('❌ Game initialization failed:', error);
+                
+                // Show error to user
+                const errorDiv = document.createElement('div');
+                errorDiv.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; max-width: 400px; z-index: 9999;';
+                errorDiv.innerHTML = `
+                    <h4>Game Initialization Failed</h4>
+                    <p>${error.message}</p>
+                    <button onclick="this.parentElement.remove()">Close</button>
+                `;
+                document.body.appendChild(errorDiv);
+            }
+        }
+        
+        /**
+         * Add fallbacks for missing systems to prevent crashes
+         */
+        function addSystemFallbacks() {
+            // Notification system fallback
+            if (typeof NotificationSystem === 'undefined') {
+                console.warn('NotificationSystem not found, adding fallback');
+                window.NotificationSystem = {
+                    show: (message, type, duration) => {
+                        console.log(`[${type?.toUpperCase() || 'INFO'}] ${message}`);
+                        
+                        // Simple toast notification
+                        const toast = document.createElement('div');
+                        toast.style.cssText = `
+                            position: fixed; top: 20px; right: 20px; z-index: 9999;
+                            padding: 10px 15px; border-radius: 5px; color: white;
+                            background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff'};
+                        `;
+                        toast.textContent = message;
+                        document.body.appendChild(toast);
+                        
+                        setTimeout(() => toast.remove(), duration || 3000);
+                    }
+                };
+            }
+            
+        }
+        
+        /**
+         * Reset game function for debugging/testing
+         */
+        function debugResetGame() {
+            Game.reset();
+        }
+        
+        // Start the game when the page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', startGame);
+        } else {
+            startGame();
+        }
+        
+        // Make reset function available globally for debugging
+        window.resetGame = debugResetGame;
+        window.clearOldSave = Game.clearOldSave;
+        
+        // =============================================================
+        // DEBUG HELPERS
+        // =============================================================
+        
+        // Expose utilities for debugging
+        window.addResources = function(resourceName, amount) {
+            if (typeof gameState !== 'undefined' && gameState.resources.hasOwnProperty(resourceName)) {
+                gameState.resources[resourceName] += amount;
+                if (typeof updateDisplay === 'function') updateDisplay();
+                console.log(`Added ${amount} ${resourceName}. New total: ${gameState.resources[resourceName]}`);
+            } else {
+                console.log(`Resource '${resourceName}' not found or gameState not available`);
+            }
+        };
+        
+        window.unlockAll = function() {
+            if (typeof gameState !== 'undefined') {
+                Object.keys(gameState.buildings || {}).forEach(building => {
+                    gameState.buildings[building].unlocked = true;
+                });
+                Object.keys(gameState.unlockedResources || {}).forEach(resource => {
+                    gameState.unlockedResources[resource] = true;
+                });
+                if (typeof updateDisplay === 'function') updateDisplay();
+                console.log('🔓 All buildings and resources unlocked!');
+            }
+        };
+        
+        // Load test script in development
+        window.runUpgradeTests = function() {
+            const script = document.createElement('script');
+            script.src = 'testUpgrades.js';
+            document.head.appendChild(script);
+        };
+        
+        // Modular system test
+        window.testModularSystems = function() {
+            console.log('🧪 Testing modular systems...');
+            console.log('- GAME_CONFIG available:', typeof GAME_CONFIG !== 'undefined');
+            console.log('- RESOURCES available:', typeof RESOURCES !== 'undefined');
+            console.log('- BUILDINGS available:', typeof BUILDINGS !== 'undefined');
+            console.log('- UPGRADES available:', typeof UPGRADES !== 'undefined');
+            console.log('- formatNumber available:', typeof formatNumber === 'function');
+            console.log('- GameState available:', typeof GameState !== 'undefined');
+            console.log('- ResourceSystem available:', typeof ResourceSystem !== 'undefined');
+            console.log('- BuildingSystem available:', typeof BuildingSystem !== 'undefined');
+        };
+        
+        console.log('🔧 Debug helpers available:');
+        console.log('  - resetGame() - Reset the game to initial state');
+        console.log('  - clearOldSave() - Clear old save data and start fresh with factory system');
+        console.log('  - addResources(resourceName, amount) - Add resources for testing');
+        console.log('  - unlockAll() - Unlock all buildings and resources');
+        console.log('  - runUpgradeTests() - Run upgrade system tests');
+        console.log('  - testModularSystems() - Test new modular architecture');
+        console.log('  - gameState - Access to the game state object (if available)');
+    </script>
+</body>
+</html>
