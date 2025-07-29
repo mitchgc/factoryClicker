@@ -98,8 +98,7 @@ const ResourceSystem = (function() {
             
             // Check base resource consumption
             Object.entries(definition.consumes).forEach(([inputResource, consumptionRate]) => {
-                const consumptionMultiplier = state.globalMultiplier * buildingMultiplier * globalMultiplier * researchBonus;
-                const requiredPerSecond = baseRate * consumptionRate * consumptionMultiplier;
+                const requiredPerSecond = baseRate * consumptionRate * totalMultiplier;
                 const requiredForPeriod = requiredPerSecond * deltaTime;
                 const availableResource = state.resources[inputResource];
                 
@@ -116,8 +115,7 @@ const ResourceSystem = (function() {
             // Check electricity consumption from upgrades
             const electricityCost = UpgradeSystem.getElectricityCost(buildingKey);
             if (electricityCost > 0) {
-                const consumptionMultiplier = state.globalMultiplier * buildingMultiplier * globalMultiplier * researchBonus;
-                const requiredElectricityPerSecond = baseRate * electricityCost * consumptionMultiplier;
+                const requiredElectricityPerSecond = baseRate * electricityCost * totalMultiplier;
                 const requiredElectricityForPeriod = requiredElectricityPerSecond * deltaTime;
                 const availableElectricity = state.resources.electricity || 0;
                 
@@ -140,7 +138,6 @@ const ResourceSystem = (function() {
             });
             
             // Add electricity consumption from upgrades
-            const electricityCost = UpgradeSystem.getElectricityCost(buildingKey);
             if (electricityCost > 0) {
                 const electricityConsumption = baseRate * electricityCost * totalMultiplier * limitingFactor * deltaTime;
                 consumption.electricity = (consumption.electricity || 0) + electricityConsumption;
@@ -187,11 +184,8 @@ const ResourceSystem = (function() {
                 return false; // Resource doesn't exist, can't afford
             }
             
-            // Check if resource is unlocked for player visibility
-            if (!state.unlockedResources[resource]) {
-                console.warn(`Resource ${resource} not unlocked yet, cannot afford cost of ${required}`);
-                return false;
-            }
+            // Note: We don't check if resource is unlocked here because canAfford should be
+            // a pure resource availability check. UI should handle visibility separately.
             
             // Use Math.floor to avoid floating point precision issues
             const canAffordAmount = Math.floor(currentAmount) >= Math.ceil(required);
@@ -282,10 +276,22 @@ const ResourceSystem = (function() {
         const definition = BUILDINGS[buildingKey];
         if (!definition || Object.keys(definition.consumes).length === 0) return true;
         
+        const state = GameState.getState();
+        const building = state.buildings[buildingKey];
+        
+        // Calculate actual consumption rate this building would add
+        const baseRate = definition.baseProduction;
+        const buildingMultiplier = UpgradeSystem.getBuildingMultiplier(buildingKey);
+        const globalMultiplier = UpgradeSystem.getGlobalMultiplier();
+        const researchBonus = ResearchSystem.getResearchBonus();
+        const totalMultiplier = state.globalMultiplier * buildingMultiplier * globalMultiplier * researchBonus;
+        
         return Object.entries(definition.consumes).every(([resource, rate]) => {
             const rates = calculateRates(resource);
+            // Calculate actual consumption this building would add
+            const actualConsumptionRate = baseRate * rate * totalMultiplier;
             // Check if adding this building would make net negative
-            return rates.net - rate >= 0;
+            return rates.net - actualConsumptionRate >= 0;
         });
     }
     

@@ -22,6 +22,17 @@ const SimpleTableUI = (function() {
         
         console.log('🖥️ Initializing SimpleTableUI...');
         
+        // Check if required systems are available and initialized
+        if (typeof ResourceSystem === 'undefined' || 
+            typeof BuildingSystem === 'undefined' || 
+            typeof UpgradeSystem === 'undefined' ||
+            typeof GameState === 'undefined' ||
+            !GameState.getState) {
+            console.warn('Required systems not ready, retrying SimpleTableUI initialization in 100ms...');
+            setTimeout(initialize, 100);
+            return;
+        }
+        
         // Build initial table structure
         buildInitialTable();
         
@@ -166,7 +177,7 @@ const SimpleTableUI = (function() {
             // Update resource values
             if (i < tableStructure.unlockedResources.length) {
                 const resource = tableStructure.unlockedResources[i];
-                const rates = ResourceSystem.calculateRates(resource.key);
+                const rates = ResourceSystem ? ResourceSystem.calculateRates(resource.key) : { production: 0, consumption: 0, net: 0 };
                 
                 // Update amount
                 const amountCell = row.children[1];
@@ -206,8 +217,8 @@ const SimpleTableUI = (function() {
                 }
                 
                 // Update cost and button state
-                const newCost = BuildingSystem.getBuildingCost(building.key, buildingState.count);
-                const canBuild = BuildingSystem.canBuild(building.key);
+                const newCost = BuildingSystem ? BuildingSystem.getBuildingCost(building.key, buildingState.count) : {};
+                const canBuild = BuildingSystem ? BuildingSystem.canBuild(building.key) : false;
                 
                 const costCell = row.children[7];
                 const actionCell = row.children[8];
@@ -232,33 +243,69 @@ const SimpleTableUI = (function() {
      */
     function getPerfectAlignmentMappings() {
         return [
-            // Perfect 1-1-1 alignments (resource -> primary building -> specific upgrade)
-            { resource: 'ironOre', building: 'ironMine', upgrade: 'better_pickaxes' },
-            { resource: 'copperOre', building: 'copperMine', upgrade: null }, // No specific upgrade
-            { resource: 'coal', building: 'coalMine', upgrade: null },
-            { resource: 'stone', building: 'stoneQuarry', upgrade: null },
-            { resource: 'ironPlates', building: 'stoneFurnace', upgrade: null },
-            { resource: 'copperPlates', building: 'copperFurnace', upgrade: null },
-            { resource: 'gears', building: 'manualGearPress', upgrade: null },
-            { resource: 'water', building: 'waterPump', upgrade: null }, // Water pump has no specific upgrade
-            { resource: 'electricity', building: 'steamEngine', upgrade: 'steam_efficiency' }, // Steam Engine Efficiency increases electricity production
-            { resource: 'copperCables', building: 'cableAssembler', upgrade: null },
-            { resource: 'steel', building: 'steelFurnace', upgrade: 'steel_production_mastery' },
-            { resource: 'circuits', building: 'circuitAssembler', upgrade: null },
-            { resource: 'engines', building: 'engineAssembler', upgrade: null },
-            { resource: 'oil', building: 'pumpjack', upgrade: null },
-            { resource: 'plastic', building: 'chemicalPlant', upgrade: null },
-            { resource: 'assemblers', building: 'assemblingMachine', upgrade: null },
-            { resource: 'computers', building: 'processingUnit', upgrade: null },
-            { resource: 'robots', building: 'robotFactory', upgrade: null },
-            { resource: 'researchPoints', building: 'researchLab', upgrade: null },
+            // Perfect 1-1-1 alignments (resource -> primary building -> next available upgrade)
+            { resource: 'ironOre', building: 'ironMine', upgradePrefix: 'iron_mine_upgrade' },
+            { resource: 'copperOre', building: 'copperMine', upgradePrefix: 'copper_mine_upgrade' },
+            { resource: 'coal', building: 'coalMine', upgradePrefix: 'coal_mine_upgrade' },
+            { resource: 'stone', building: 'stoneQuarry', upgradePrefix: 'stone_quarry_upgrade' },
+            { resource: 'ironPlates', building: 'stoneFurnace', upgradePrefix: 'stone_furnace_upgrade' },
+            { resource: 'copperPlates', building: 'copperFurnace', upgradePrefix: 'copper_furnace_upgrade' },
+            { resource: 'gears', building: 'manualGearPress', upgradePrefix: 'manual_gear_press_upgrade' },
+            { resource: 'water', building: 'waterPump', upgradePrefix: 'water_pump_upgrade' },
+            { resource: 'electricity', building: 'steamEngine', upgradePrefix: 'steam_engine_upgrade' },
+            { resource: 'copperCables', building: 'cableAssembler', upgradePrefix: 'cable_assembler_upgrade' },
+            { resource: 'steel', building: 'steelFurnace', upgradePrefix: 'steel_furnace_upgrade' },
+            { resource: 'circuits', building: 'circuitAssembler', upgradePrefix: 'circuit_assembler_upgrade' },
+            { resource: 'engines', building: 'engineAssembler', upgradePrefix: 'engine_assembler_upgrade' },
+            { resource: 'oil', building: 'pumpjack', upgradePrefix: 'pumpjack_upgrade' },
+            { resource: 'plastic', building: 'chemicalPlant', upgradePrefix: 'chemical_plant_upgrade' },
+            { resource: 'assemblers', building: 'assemblingMachine', upgradePrefix: 'assembling_machine_upgrade' },
+            { resource: 'computers', building: 'processingUnit', upgradePrefix: 'processing_unit_upgrade' },
+            { resource: 'robots', building: 'robotFactory', upgradePrefix: 'robot_factory_upgrade' },
+            { resource: 'researchPoints', building: 'researchLab', upgradePrefix: 'research_lab_upgrade' },
         ];
+    }
+    
+    /**
+     * Find the next available upgrade for a building
+     * @param {string} upgradePrefix - Prefix for upgrade IDs (e.g., 'iron_mine_upgrade')
+     * @param {Array} purchasedUpgrades - List of already purchased upgrades
+     * @returns {string|null} Next upgrade ID or null
+     */
+    function getNextBuildingUpgrade(upgradePrefix, purchasedUpgrades) {
+        if (!upgradePrefix) return null;
+        
+        // Check if UpgradeSystem is available
+        if (typeof UpgradeSystem === 'undefined') {
+            return null;
+        }
+        
+        // Try upgrades in order: _1, _2, _electric
+        const upgradeOrder = ['_1', '_2', '_electric'];
+        
+        for (const suffix of upgradeOrder) {
+            const upgradeId = upgradePrefix + suffix;
+            if (UPGRADES[upgradeId] && !purchasedUpgrades.includes(upgradeId)) {
+                // Check if this upgrade is unlocked
+                if (UpgradeSystem.isUnlocked(upgradeId)) {
+                    return upgradeId;
+                }
+            }
+        }
+        
+        return null; // All upgrades purchased or none available
     }
     
     /**
      * Get aligned table data (ensures perfect 1-1-1 synchronization)
      */
     function getAlignedTableData(state) {
+        // Check if required systems are available
+        if (typeof ResourceSystem === 'undefined' || typeof BuildingSystem === 'undefined') {
+            console.warn('Required systems not yet loaded, returning empty data');
+            return [];
+        }
+        
         const alignmentMappings = getPerfectAlignmentMappings();
         const alignedData = [];
         
@@ -266,7 +313,10 @@ const SimpleTableUI = (function() {
         alignmentMappings.forEach(mapping => {
             const resourceUnlocked = state.unlockedResources[mapping.resource] && state.resources[mapping.resource] !== undefined;
             const buildingUnlocked = state.buildings[mapping.building] && state.buildings[mapping.building].unlocked;
-            const upgradeAvailable = mapping.upgrade && !state.purchasedUpgrades.includes(mapping.upgrade) && UpgradeSystem.isUnlocked(mapping.upgrade);
+            
+            // Find the next available upgrade for this building
+            const nextUpgradeId = getNextBuildingUpgrade(mapping.upgradePrefix, state.purchasedUpgrades);
+            const upgradeAvailable = nextUpgradeId && UPGRADES[nextUpgradeId];
             
             // Only include this row if the resource is unlocked (the main condition)
             if (resourceUnlocked) {
@@ -277,7 +327,7 @@ const SimpleTableUI = (function() {
                         rates: ResourceSystem.calculateRates(mapping.resource),
                         definition: RESOURCES[mapping.resource],
                         alignedBuilding: mapping.building,
-                        alignedUpgrade: mapping.upgrade
+                        alignedUpgrade: nextUpgradeId
                     },
                     building: buildingUnlocked ? {
                         key: mapping.building,
@@ -286,13 +336,13 @@ const SimpleTableUI = (function() {
                         cost: BuildingSystem.getBuildingCost(mapping.building, state.buildings[mapping.building].count),
                         canBuild: BuildingSystem.canBuild(mapping.building),
                         alignedResource: mapping.resource,
-                        alignedUpgrade: mapping.upgrade
+                        alignedUpgrade: nextUpgradeId
                     } : null,
                     upgrade: upgradeAvailable ? {
-                        key: mapping.upgrade,
-                        upgrade: UPGRADES[mapping.upgrade],
-                        canAfford: ResourceSystem.canAfford(UPGRADES[mapping.upgrade].cost),
-                        canPurchase: UpgradeSystem.canPurchase(mapping.upgrade),
+                        key: nextUpgradeId,
+                        upgrade: UPGRADES[nextUpgradeId],
+                        canAfford: ResourceSystem.canAfford(UPGRADES[nextUpgradeId].cost),
+                        canPurchase: UpgradeSystem.canPurchase(nextUpgradeId),
                         alignedResource: mapping.resource,
                         alignedBuilding: mapping.building
                     } : null
@@ -463,15 +513,21 @@ const SimpleTableUI = (function() {
         const produces = Object.entries(building.definition.produces || {});
         const consumes = Object.entries(building.definition.consumes || {});
         
-        // Check resource sustainability for this building
+        // Check resource sustainability for this building using actual multipliers
         const wouldCauseNegative = {};
-        if (state) {
+        if (state && ResourceSystem) {
+            // Get multipliers for accurate calculation
+            const buildingMultiplier = UpgradeSystem.getBuildingMultiplier(building.key);
+            const globalMultiplier = UpgradeSystem.getGlobalMultiplier();
+            const researchBonus = ResearchSystem.getResearchBonus();
+            const totalMultiplier = state.globalMultiplier * buildingMultiplier * globalMultiplier * researchBonus;
+            
             consumes.forEach(([resource, consumptionRate]) => {
                 const currentRates = ResourceSystem.calculateRates(resource);
-                const buildingRate = building.definition.baseProduction * consumptionRate;
+                const actualBuildingRate = building.definition.baseProduction * consumptionRate * totalMultiplier;
                 
                 // Check if adding one more of this building would make net negative
-                if (currentRates.net - buildingRate < 0) {
+                if (currentRates.net - actualBuildingRate < 0) {
                     wouldCauseNegative[resource] = true;
                 }
             });
@@ -479,20 +535,34 @@ const SimpleTableUI = (function() {
         
         let benefit = '';
         if (produces.length > 0) {
+            // Get multipliers for accurate production display
+            const buildingMultiplier = UpgradeSystem.getBuildingMultiplier(building.key);
+            const globalMultiplier = UpgradeSystem.getGlobalMultiplier();
+            const researchBonus = ResearchSystem.getResearchBonus();
+            const totalMultiplier = state.globalMultiplier * buildingMultiplier * globalMultiplier * researchBonus;
+            
             benefit += produces.map(([resource, rate]) => {
                 const resourceDef = RESOURCES[resource];
                 const icon = resourceDef?.icon || '📦';
                 const resourceName = resourceDef?.name || resource;
-                return `<span style="color: #28a745;" title="Produces ${resourceName}">${icon} +${formatNumber(rate)}/s</span>`;
+                const actualRate = building.definition.baseProduction * rate * totalMultiplier;
+                return `<span style="color: #28a745;" title="Produces ${resourceName}">${icon} +${formatNumber(actualRate)}/s</span>`;
             }).join(' ');
         }
         
         if (consumes.length > 0) {
             if (benefit) benefit += '<br>';
+            // Use the same multipliers for consumption display
+            const buildingMultiplier = UpgradeSystem.getBuildingMultiplier(building.key);
+            const globalMultiplier = UpgradeSystem.getGlobalMultiplier();
+            const researchBonus = ResearchSystem.getResearchBonus();
+            const totalMultiplier = state.globalMultiplier * buildingMultiplier * globalMultiplier * researchBonus;
+            
             benefit += consumes.map(([resource, rate]) => {
                 const resourceDef = RESOURCES[resource];
                 const icon = resourceDef?.icon || '📦';
                 const resourceName = resourceDef?.name || resource;
+                const actualRate = building.definition.baseProduction * rate * totalMultiplier;
                 const isNegative = wouldCauseNegative[resource];
                 const style = isNegative ? 
                     'color: #dc3545; font-weight: bold; text-decoration: underline; cursor: pointer;' : 
@@ -501,7 +571,7 @@ const SimpleTableUI = (function() {
                 const onclick = isNegative ? ` onclick="SimpleTableUI.scrollToResource('${resource}')"` : '';
                 const title = isNegative ? `Not enough ${resourceName}! Click to see resource.` : `Consumes ${resourceName}`;
                 
-                return `<span style="${style}" title="${title}"${onclick}>${warningIcon}${icon} -${formatNumber(rate)}/s</span>`;
+                return `<span style="${style}" title="${title}"${onclick}>${warningIcon}${icon} -${formatNumber(actualRate)}/s</span>`;
             }).join(' ');
         }
         

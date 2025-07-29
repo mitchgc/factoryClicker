@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Balance Verification</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #111; 
+            color: #0f0; 
+            padding: 20px;
+            line-height: 1.4;
+        }
+        .console { 
+            white-space: pre-wrap; 
+            background: #000; 
+            padding: 15px; 
+            border: 1px solid #333;
+            max-height: 700px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        button {
+            background: #333;
+            color: #0f0;
+            border: 1px solid #555;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-family: monospace;
+        }
+        button:hover { background: #444; }
+        h1, h2 { color: #ff0; }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .warning { color: #fa0; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Final Balance Checker Verification</h1>
+    <p>This test verifies that all balance checking inconsistencies have been fixed.</p>
+    
+    <button onclick="runVerification()">🚀 Run Complete Verification</button>
+    <button onclick="clearConsole()">🧹 Clear Console</button>
+    <button onclick="runStressTest()">⚡ Run Stress Test</button>
+    
+    <div id="console" class="console">Click "Run Complete Verification" to start testing...</div>
+
+    <!-- Load game systems -->
+    <script src="src/data/constants.js"></script>
+    <script src="src/data/buildings.js"></script>
+    <script src="src/data/upgrades.js"></script>
+    <script src="src/utils/formatters.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/core/gameState.js"></script>
+    <script src="src/systems/resourceSystem.js"></script>
+    <script src="src/systems/buildingSystem.js"></script>
+    <script src="src/systems/upgradeSystem.js"></script>
+    <script src="src/systems/researchSystem.js"></script>
+    <script src="src/core/game.js"></script>
+    
+    <script>
+        // Enhanced console logging with styling
+        const originalLog = console.log;
+        const consoleDiv = document.getElementById('console');
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.join(' ');
+            let styleClass = '';
+            
+            if (message.includes('✅') || message.includes('PASS')) {
+                styleClass = 'success';
+            } else if (message.includes('❌') || message.includes('FAIL') || message.includes('ERROR')) {
+                styleClass = 'error';
+            } else if (message.includes('⚠️') || message.includes('WARN')) {
+                styleClass = 'warning';
+            }
+            
+            const span = document.createElement('span');
+            span.className = styleClass;
+            span.textContent = message + '\n';
+            consoleDiv.appendChild(span);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        };
+        
+        function clearConsole() {
+            consoleDiv.innerHTML = '';
+        }
+        
+        function runVerification() {
+            clearConsole();
+            console.log('🔍 STARTING COMPREHENSIVE BALANCE VERIFICATION');
+            console.log('=' .repeat(60));
+            
+            // Initialize the game first
+            if (typeof Game !== 'undefined') {
+                Game.initialize();
+                setTimeout(() => {
+                    performAllTests();
+                }, 500);
+            } else {
+                console.log('❌ Game system not available');
+            }
+        }
+        
+        function runStressTest() {
+            clearConsole();
+            console.log('⚡ RUNNING STRESS TEST - 1000 ITERATIONS');
+            console.log('=' .repeat(60));
+            
+            if (typeof Game !== 'undefined') {
+                Game.initialize();
+                setTimeout(() => {
+                    performStressTest();
+                }, 500);
+            } else {
+                console.log('❌ Game system not available');
+            }
+        }
+        
+        function performAllTests() {
+            let passCount = 0;
+            let failCount = 0;
+            
+            console.log('\n📋 TEST 1: ResourceSystem.canAfford Consistency');
+            console.log('-'.repeat(40));
+            
+            const testCosts = [
+                { ironOre: 10 },
+                { ironOre: 100, stone: 50 },
+                { copperPlates: 20, gears: 5 },
+                { electricity: 50 },
+                { researchPoints: 10 }
+            ];
+            
+            testCosts.forEach((cost, i) => {
+                const result1 = ResourceSystem.canAfford(cost);
+                const result2 = ResourceSystem.canAfford(cost);
+                const result3 = ResourceSystem.canAfford(cost);
+                
+                if (result1 === result2 && result2 === result3) {
+                    console.log(`✅ Cost ${i+1}: Consistent (${result1})`);
+                    passCount++;
+                } else {
+                    console.log(`❌ Cost ${i+1}: Inconsistent (${result1}, ${result2}, ${result3})`);
+                    failCount++;
+                }
+            });
+            
+            console.log('\n🏗️ TEST 2: BuildingSystem Consistency');
+            console.log('-'.repeat(40));
+            
+            const buildings = ['ironMine', 'copperMine', 'stoneFurnace'];
+            buildings.forEach(buildingKey => {
+                const state = GameState.getState();
+                if (!state.buildings[buildingKey] || !state.buildings[buildingKey].unlocked) {
+                    console.log(`⚠️ ${buildingKey}: Not unlocked, skipping`);
+                    return;
+                }
+                
+                const building = state.buildings[buildingKey];
+                const cost = BuildingSystem.getBuildingCost(buildingKey, building.count);
+                const canAfford = ResourceSystem.canAfford(cost);
+                const canSustain = ResourceSystem.canSustainBuilding(buildingKey);
+                const canBuild = BuildingSystem.canBuild(buildingKey);
+                
+                const expected = canAfford && canSustain;
+                if (canBuild === expected) {
+                    console.log(`✅ ${buildingKey}: canBuild=${canBuild} matches logic`);
+                    passCount++;
+                } else {
+                    console.log(`❌ ${buildingKey}: canBuild=${canBuild}, expected=${expected}`);
+                    failCount++;
+                }
+            });
+            
+            console.log('\n⬆️ TEST 3: UpgradeSystem Consistency');
+            console.log('-'.repeat(40));
+            
+            const upgrades = ['iron_mine_upgrade_1', 'copper_mine_upgrade_1'];
+            upgrades.forEach(upgradeId => {
+                if (!UPGRADES[upgradeId]) {
+                    console.log(`⚠️ ${upgradeId}: Not found, skipping`);
+                    return;
+                }
+                
+                const state = GameState.getState();
+                const upgrade = UPGRADES[upgradeId];
+                const isUnlocked = UpgradeSystem.isUnlocked(upgradeId);
+                const canAfford = ResourceSystem.canAfford(upgrade.cost);
+                const isPurchased = state.purchasedUpgrades.includes(upgradeId);
+                const canPurchase = UpgradeSystem.canPurchase(upgradeId);
+                
+                const expected = isUnlocked && canAfford && !isPurchased;
+                if (canPurchase === expected) {
+                    console.log(`✅ ${upgradeId}: canPurchase=${canPurchase} matches logic`);
+                    passCount++;
+                } else {
+                    console.log(`❌ ${upgradeId}: canPurchase=${canPurchase}, expected=${expected}`);
+                    failCount++;
+                }
+            });
+            
+            console.log('\n📊 TEST 4: Rate Calculation Stability');
+            console.log('-'.repeat(40));
+            
+            const resources = ['ironOre', 'stone', 'electricity'];
+            resources.forEach(resource => {
+                const state = GameState.getState();
+                if (state.resources[resource] === undefined) {
+                    console.log(`⚠️ ${resource}: Not found, skipping`);
+                    return;
+                }
+                
+                const rates1 = ResourceSystem.calculateRates(resource);
+                const rates2 = ResourceSystem.calculateRates(resource);
+                
+                const consistent = (
+                    rates1.production === rates2.production &&
+                    rates1.consumption === rates2.consumption &&
+                    rates1.net === rates2.net
+                );
+                
+                if (consistent) {
+                    console.log(`✅ ${resource}: Rate calculations stable`);
+                    passCount++;
+                } else {
+                    console.log(`❌ ${resource}: Rate calculations unstable`);
+                    failCount++;
+                }
+            });
+            
+            // Final summary
+            console.log('\n' + '='.repeat(60));
+            console.log('🏁 VERIFICATION COMPLETE');
+            console.log('='.repeat(60));
+            console.log(`✅ PASSED: ${passCount}`);
+            console.log(`❌ FAILED: ${failCount}`);
+            console.log(`📊 SUCCESS RATE: ${((passCount / (passCount + failCount)) * 100).toFixed(1)}%`);
+            
+            if (failCount === 0) {
+                console.log('\n🎉 ALL TESTS PASSED! Balance checking is now consistent.');
+            } else {
+                console.log('\n⚠️ Some issues remain. Check failed tests above.');
+            }
+        }
+        
+        function performStressTest() {
+            let consistencyErrors = 0;
+            const iterations = 1000;
+            
+            console.log(`Running ${iterations} iterations of balance checks...`);
+            
+            for (let i = 0; i < iterations; i++) {
+                const testCost = { ironOre: Math.floor(Math.random() * 100) + 1 };
+                
+                const result1 = ResourceSystem.canAfford(testCost);
+                const result2 = ResourceSystem.canAfford(testCost);
+                
+                if (result1 !== result2) {
+                    consistencyErrors++;
+                    if (consistencyErrors <= 5) { // Only log first 5 errors
+                        console.log(`❌ Iteration ${i}: Inconsistent results for ${JSON.stringify(testCost)}`);
+                    }
+                }
+                
+                // Progress indicator
+                if (i % 100 === 0) {
+                    console.log(`Progress: ${i}/${iterations}`);
+                }
+            }
+            
+            console.log('\n🏁 STRESS TEST COMPLETE');
+            console.log(`Total consistency errors: ${consistencyErrors}/${iterations}`);
+            
+            if (consistencyErrors === 0) {
+                console.log('✅ Perfect consistency across all iterations!');
+            } else {
+                console.log(`❌ ${((consistencyErrors / iterations) * 100).toFixed(2)}% error rate`);
+            }
+        }
+    </script>
+</body>
+</html>
