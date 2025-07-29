@@ -58,8 +58,11 @@ const Game = (function() {
             updateProductionDisplay();
         }
         
-        updateStatsDisplay();
-        updateResearchDisplay();
+        // Defer stats and research updates slightly to ensure systems are loaded
+        setTimeout(() => {
+            updateStatsDisplay();
+            updateResearchDisplay();
+        }, 100);
         
         console.log('🖥️ UI initialized');
     }
@@ -75,7 +78,9 @@ const Game = (function() {
                 lastUpdate = now;
                 
                 // Update game systems
-                ResourceSystem.update(deltaTime);
+                if (typeof ResourceSystem !== 'undefined') {
+                    ResourceSystem.update(deltaTime);
+                }
                 
                 
             } catch (error) {
@@ -135,7 +140,9 @@ const Game = (function() {
         switch (type) {
             case 'buildingAdded':
                 // Building was added, check for new unlocks
-                BuildingSystem.checkUnlocks();
+                if (typeof BuildingSystem !== 'undefined') {
+                    BuildingSystem.checkUnlocks();
+                }
                 break;
             
             case 'researchReset':
@@ -169,7 +176,7 @@ const Game = (function() {
             .map(([resourceKey, amount]) => ({
                 resourceKey,
                 amount,
-                rates: ResourceSystem.calculateRates(resourceKey)
+                rates: (typeof ResourceSystem !== 'undefined') ? ResourceSystem.calculateRates(resourceKey) : { production: 0, consumption: 0, net: 0 }
             }))
             .sort((a, b) => getResourcePriority(b) - getResourcePriority(a)); // Higher priority first
         
@@ -248,7 +255,7 @@ const Game = (function() {
         const hintElement = document.getElementById('unlock-hint');
         if (!hintElement) return;
         
-        const hint = BuildingSystem.getUnlockHint();
+        const hint = (typeof BuildingSystem !== 'undefined') ? BuildingSystem.getUnlockHint() : null;
         
         if (hint) {
             hintElement.textContent = hint;
@@ -265,12 +272,23 @@ const Game = (function() {
         const container = document.getElementById('stats-panel');
         if (!container) return;
         
+        // Check if required systems are available
+        if (typeof GameState === 'undefined' || 
+            typeof BuildingSystem === 'undefined' || 
+            typeof ResourceSystem === 'undefined' ||
+            !GameState.getState) {
+            // Silently return - systems not ready yet
+            return;
+        }
+        
         const state = GameState.getState();
+        const buildingCount = BuildingSystem.getTotalBuildingCount();
+        const electricityRate = ResourceSystem.calculateRates('electricity');
         
         container.innerHTML = `
             <div class="stats-grid">
                 <div class="stat-item">
-                    <div class="stat-value">${BuildingSystem.getTotalBuildingCount()}</div>
+                    <div class="stat-value">${buildingCount}</div>
                     <div class="stat-label">Total Buildings</div>
                 </div>
                 <div class="stat-item">
@@ -282,7 +300,7 @@ const Game = (function() {
                     <div class="stat-label">Electricity</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">${ResourceSystem.calculateRates('electricity').production.toFixed(1)}/s</div>
+                    <div class="stat-value">${electricityRate.production.toFixed(1)}/s</div>
                     <div class="stat-label">Power Generation</div>
                 </div>
             </div>
@@ -295,6 +313,12 @@ const Game = (function() {
     function updateResearchDisplay() {
         const container = document.getElementById('research-panel');
         if (!container) return;
+        
+        // Check if ResearchSystem is available
+        if (typeof ResearchSystem === 'undefined') {
+            console.warn('ResearchSystem not ready for research display');
+            return;
+        }
         
         const stats = ResearchSystem.getStats();
         const canReset = stats.isResetWorthwhile;
@@ -385,7 +409,7 @@ const Game = (function() {
     
     // Global functions for HTML onclick handlers
     window.handleResearchReset = function() {
-        if (ResearchSystem.performReset()) {
+        if (typeof ResearchSystem !== 'undefined' && ResearchSystem.performReset()) {
             // Research reset success is handled by state change listener
         } else {
             NotificationSystem.show('Research reset not beneficial yet', 'info');

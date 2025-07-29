@@ -255,7 +255,7 @@ const BUILDINGS = {
         produces: { copperCables: 2 },
         consumes: { copperPlates: 1, electricity: 1 },
         unlocked: false,
-        unlockRequirement: { building: 'gearAssembler', count: 1 }
+        unlockRequirement: { building: 'copperFurnace', count: 1 }
     },
     
     circuitAssembler: {
@@ -268,7 +268,7 @@ const BUILDINGS = {
         produces: { circuits: 1 },
         consumes: { ironPlates: 1, copperCables: 3, electricity: 2 },
         unlocked: false,
-        unlockRequirement: { building: 'cableAssembler', count: 1 }
+        unlockRequirement: { building: 'steamEngine', count: 1 }
     },
     
     engineAssembler: {

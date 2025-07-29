@@ -209,62 +209,13 @@
         window.resetGame = debugResetGame;
         window.clearOldSave = Game.clearOldSave;
         
-        // =============================================================
-        // DEBUG HELPERS
-        // =============================================================
-        
-        // Expose utilities for debugging
-        window.addResources = function(resourceName, amount) {
-            if (typeof gameState !== 'undefined' && gameState.resources.hasOwnProperty(resourceName)) {
-                gameState.resources[resourceName] += amount;
-                if (typeof updateDisplay === 'function') updateDisplay();
-                console.log(`Added ${amount} ${resourceName}. New total: ${gameState.resources[resourceName]}`);
-            } else {
-                console.log(`Resource '${resourceName}' not found or gameState not available`);
-            }
-        };
-        
-        window.unlockAll = function() {
-            if (typeof gameState !== 'undefined') {
-                Object.keys(gameState.buildings || {}).forEach(building => {
-                    gameState.buildings[building].unlocked = true;
-                });
-                Object.keys(gameState.unlockedResources || {}).forEach(resource => {
-                    gameState.unlockedResources[resource] = true;
-                });
-                if (typeof updateDisplay === 'function') updateDisplay();
-                console.log('🔓 All buildings and resources unlocked!');
-            }
-        };
-        
-        // Load test script in development
-        window.runUpgradeTests = function() {
-            const script = document.createElement('script');
-            script.src = 'testUpgrades.js';
-            document.head.appendChild(script);
-        };
-        
-        // Modular system test
-        window.testModularSystems = function() {
-            console.log('🧪 Testing modular systems...');
-            console.log('- GAME_CONFIG available:', typeof GAME_CONFIG !== 'undefined');
-            console.log('- RESOURCES available:', typeof RESOURCES !== 'undefined');
-            console.log('- BUILDINGS available:', typeof BUILDINGS !== 'undefined');
-            console.log('- UPGRADES available:', typeof UPGRADES !== 'undefined');
-            console.log('- formatNumber available:', typeof formatNumber === 'function');
-            console.log('- GameState available:', typeof GameState !== 'undefined');
-            console.log('- ResourceSystem available:', typeof ResourceSystem !== 'undefined');
-            console.log('- BuildingSystem available:', typeof BuildingSystem !== 'undefined');
-        };
-        
-        console.log('🔧 Debug helpers available:');
-        console.log('  - resetGame() - Reset the game to initial state');
-        console.log('  - clearOldSave() - Clear old save data and start fresh with factory system');
-        console.log('  - addResources(resourceName, amount) - Add resources for testing');
-        console.log('  - unlockAll() - Unlock all buildings and resources');
-        console.log('  - runUpgradeTests() - Run upgrade system tests');
-        console.log('  - testModularSystems() - Test new modular architecture');
-        console.log('  - gameState - Access to the game state object (if available)');
+        // Load debug helpers in development mode
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '') {
+            const debugScript = document.createElement('script');
+            debugScript.src = 'test/debug_helpers.js';
+            debugScript.onerror = () => console.log('Debug helpers not loaded (production mode)');
+            document.head.appendChild(debugScript);
+        }
     </script>
 </body>
 </html>

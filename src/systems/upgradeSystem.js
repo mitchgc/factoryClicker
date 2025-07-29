@@ -56,9 +56,13 @@ const UpgradeSystem = (function() {
         const state = GameState.getState();
         const condition = upgrade.unlockCondition;
         
-        // Check total clicks
-        if (condition.totalClicks && state.stats.totalClicks < condition.totalClicks) {
-            return false;
+        // Check prerequisite upgrades
+        if (condition.upgrades) {
+            for (const requiredUpgradeId of condition.upgrades) {
+                if (!state.purchasedUpgrades.includes(requiredUpgradeId)) {
+                    return false;
+                }
+            }
         }
         
         // Check building requirements

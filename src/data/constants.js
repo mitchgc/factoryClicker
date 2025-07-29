@@ -4,7 +4,7 @@
 
 const GAME_CONFIG = {
     // Development settings
-    DEBUG_MODE: false,                   // Enable debug logging
+    DEBUG_MODE: true,                    // Enable debug logging
 
     // Game timing
     UPDATE_INTERVAL: 100,                // Update every 100ms (10 times per second)

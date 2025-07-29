@@ -47,6 +47,17 @@ const BuildingSystem = (function() {
         // Add building
         GameState.addBuilding(buildingKey);
         
+        // Unlock resources produced by this building
+        const definition = BUILDINGS[buildingKey];
+        if (definition && definition.produces) {
+            Object.keys(definition.produces).forEach(resource => {
+                ResourceSystem.unlockResource(resource);
+                if (GAME_CONFIG.DEBUG_MODE) {
+                    console.log(`Unlocked resource: ${resource} from building: ${buildingKey}`);
+                }
+            });
+        }
+        
         // Check for unlocks
         checkUnlocks();
         
@@ -191,13 +202,14 @@ const BuildingSystem = (function() {
             // Tier 2: Basic processing
             stoneFurnace: 2,
             copperFurnace: 2,
+            cableAssembler: 2,
             manualGearPress: 2,
             waterPump: 2,
             
             // Tier 3: Steam power and automation
             steamEngine: 3,
             gearAssembler: 3,
-            cableAssembler: 3,
+            circuitAssembler: 3,
             
             // Tier 4: Electric mining
             electricIronDrill: 4,
@@ -206,7 +218,6 @@ const BuildingSystem = (function() {
             electricStoneDrill: 4,
             
             // Tier 5: Advanced processing
-            circuitAssembler: 5,
             steelFurnace: 5,
             researchLab: 5,
             
@@ -259,10 +270,10 @@ const BuildingSystem = (function() {
         
         // Find the next locked building
         const buildingOrder = [
-            'ironMine', 'copperMine', 'coalMine', 'stoneQuarry', 'stoneFurnace', 'copperFurnace', 
-            'manualGearPress', 'waterPump', 'steamEngine', 'gearAssembler', 'cableAssembler',
+            'ironMine', 'copperMine', 'coalMine', 'stoneQuarry', 'stoneFurnace', 'copperFurnace', 'cableAssembler',
+            'manualGearPress', 'waterPump', 'steamEngine', 'circuitAssembler', 'gearAssembler',
             'electricIronDrill', 'electricCopperDrill', 'electricCoalDrill', 'electricStoneDrill',
-            'circuitAssembler', 'steelFurnace', 'researchLab', 'engineAssembler', 'solarPanel', 
+            'steelFurnace', 'researchLab', 'engineAssembler', 'solarPanel', 
             'pumpjack', 'assemblingMachine', 'chemicalPlant', 'processingUnit', 'robotFactory', 'advancedLab'
         ];
         
